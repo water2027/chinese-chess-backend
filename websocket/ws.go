@@ -87,6 +87,7 @@ func (ch *ChessHub) Run() {
 		case match:
 			client := cmd.client
 			if len(ch.spareRooms) == 0 {
+				fmt.Println("create new room")
 				// 没有空闲房间，创建一个新的房间
 				room := NewChessRoom()
 				room.Current = client
@@ -114,6 +115,14 @@ func (ch *ChessHub) Run() {
 				fmt.Println("房间已满")
 				continue
 			}
+			fmt.Println("加入房间成功", roomId)
+			// 发送消息给两个客户端，通知他们开始游戏
+			go func(){
+				ch.commands <- hubCommand{
+					commandType: start,
+					client:      client,
+				}
+			}()
 		case move:
 			req := cmd.payload.(moveRequest)
 			room := ch.Rooms[req.from.RoomId]
@@ -147,6 +156,7 @@ func (ch *ChessHub) Run() {
 			}
 
 		case start:
+			fmt.Println("开始游戏")
 			room := ch.Rooms[cmd.client.RoomId]
 			if room == nil {
 				fmt.Println("房间不存在")
@@ -221,6 +231,11 @@ func (ch *ChessHub) HandleConnection(c *gin.Context) {
 			client:      client,
 		}
 	}()
+
+	ch.sendMessage(client, NormalMessage{
+		BaseMessage: BaseMessage{Type: Normal},
+		Message:     "连接成功",
+	})
 
 	for {
 		fmt.Println("等待消息...")
@@ -312,6 +327,7 @@ func (ch *ChessHub) sendMessage(client *Client, message any) {
 }
 
 func (ch *ChessHub) sendMessageInternal(client *Client, message any) {
+	fmt.Println("发送消息", message)
 	err := client.Conn.WriteJSON(message)
 	if err != nil {
 		fmt.Printf("发送消息失败: %v\n", err)
