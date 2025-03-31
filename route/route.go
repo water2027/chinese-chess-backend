@@ -15,7 +15,7 @@ func SetupRouter() *gin.Engine {
 
 	// 设置跨域请求
 	r.Use(middleware.CorsMiddleware())
-	// r.Use(middleware.AuthMiddleware())
+	r.Use(middleware.AuthMiddleware())
 
 	user := controller.NewUserController(service.NewUserService())
 

@@ -11,7 +11,6 @@ import (
 	"github.com/gorilla/websocket"
 
 	"chinese-chess-backend/dto"
-	"chinese-chess-backend/utils"
 )
 
 var upgrader = &websocket.Upgrader{
@@ -21,10 +20,6 @@ var upgrader = &websocket.Upgrader{
 	CheckOrigin: func(r *http.Request) bool {
 		return true
 	},
-}
-
-type websocketQuery struct {
-	Token string `form:"token"`
 }
 
 type clientStatus int
@@ -189,37 +184,24 @@ func (ch *ChessHub) Run() {
 }
 
 func (ch *ChessHub) HandleConnection(c *gin.Context) {
-	var query websocketQuery
-	err := c.ShouldBindQuery(&query)
-	if err != nil {
-		dto.ErrorResponse(c, dto.WithMessage("未登录或token错误"))
+	userId, exists := c.Get("userId")
+	if !exists {
+		dto.ErrorResponse(c, dto.WithMessage("用户未登录"))
 		return
 	}
-	fmt.Println(1)
-	
-	if query.Token == "" {
-		dto.ErrorResponse(c, dto.WithMessage("未登录或token错误"))
+
+	id, ok := userId.(int)
+	if !ok {
+		dto.ErrorResponse(c, dto.WithMessage("用户ID转换失败"))
 		return
 	}
-	fmt.Println(2)
-	
-	// 验证token是否有效
-	id := utils.ParseToken(query.Token)
-	fmt.Println("id", id)
-	if id <= 0 {
-		dto.ErrorResponse(c, dto.WithMessage("未登录或token错误"))
-		return
-	}
-	fmt.Println(3)
 	
 	conn, err := upgrader.Upgrade(c.Writer, c.Request, nil)
-	fmt.Println(4)
 	if err != nil {
 		dto.ErrorResponse(c, dto.WithMessage("websocket upgrade error"))
 		return
 	}
 	defer conn.Close()
-	fmt.Println(5)
 
 	// 创建一个新的客户端
 	client := &Client{

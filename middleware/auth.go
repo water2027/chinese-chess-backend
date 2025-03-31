@@ -11,16 +11,25 @@ import (
 
 func AuthMiddleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
+		if strings.HasPrefix(c.Request.URL.Path, "/api/public") {
+			// 如果是公共接口，直接放行
+			c.Next()
+			return
+		}
 		authHeader := c.GetHeader("Authorization")
 		userId := utils.ParseToken(authHeader)
 		if userId <= 0 {
-			path := c.Request.URL.Path
-			if strings.HasPrefix(path, "/api/public") {
-				c.Next()
+			// 从路径中获取token
+			token := c.Query("token")
+			if token == "" {
+				dto.ErrorResponse(c, dto.WithMessage("未登录或token错误"))
 				return
 			}
-			dto.ErrorResponse(c, dto.WithCode(dto.TokenError))
-			return
+			userId = utils.ParseToken(token)
+			if userId <= 0 {
+				dto.ErrorResponse(c, dto.WithMessage("未登录或token错误"))
+				return
+			}
 		}
 		c.Set("userId", userId)
 		c.Next()
