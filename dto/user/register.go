@@ -45,36 +45,3 @@ type RegisterResponse struct {
 	Token string `json:"token"`
 	Name  string `json:"name"`
 }
-
-type LoginRequest struct {
-	Email    string `json:"email" binding:"required,email"`
-	Password string `json:"password" binding:"required,min=6"`
-}
-
-func (r *LoginRequest) Examine() error {
-	email := r.Email
-	password := r.Password
-	if email == "" || password == "" {
-		return fmt.Errorf("邮箱和密码不能为空")
-	}
-	return nil
-}
-
-type LoginResponse struct {
-	Token string `json:"token"`
-	Name  string `json:"name"`
-}
-
-type SendVCodeRequest struct {
-	Email string `json:"email" binding:"required,email"`
-}
-
-func (r *SendVCodeRequest) Examine() error {	
-	reg := regexp2.MustCompile(`^(([^<>()[\]\\.,;:\s@"]+(\.[^<>()[\]\\.,;:\s@"]+)*)|(".+"))@((\[[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\])|(([a-zA-Z\-0-9]+\.)+[a-zA-Z]{2,}))$`, 0)
-	isMatch, _ := reg.MatchString(r.Email)
-	if !isMatch {
-		return fmt.Errorf("邮箱不合格")
-	}
-
-	return nil
-}
