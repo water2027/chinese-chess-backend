@@ -6,6 +6,7 @@ import (
 	"gorm.io/gorm/logger"
 	"gorm.io/gorm/schema"
 	"time"
+	"sync"
 	// 读取.env
 	"os"
 	"log"
@@ -15,7 +16,20 @@ import (
 	"chinese-chess-backend/model"
 )
 
-var DB *gorm.DB
+// var db *gorm.DB
+var (
+	db   *gorm.DB
+	mu   sync.Mutex
+)
+
+func GetMysqlDb() *gorm.DB {
+	mu.Lock()
+	defer mu.Unlock()
+	if db == nil {
+		initMysql()
+	}
+	return db
+}
 
 func initMysql() {
 	// 从环境变量获取数据库连接参数
@@ -57,13 +71,13 @@ func initMysql() {
 	
 	// 连接数据库
 	var err error
-	DB, err = gorm.Open(mysql.Open(dsn), config)
+	db, err = gorm.Open(mysql.Open(dsn), config)
 	if err != nil {
 		log.Fatalf("Failed to connect to database: %v", err)
 	}
 	
 	// 配置连接池
-	sqlDB, err := DB.DB()
+	sqlDB, err := db.DB()
 	if err != nil {
 		log.Fatalf("Failed to get database connection: %v", err)
 	}
@@ -73,10 +87,11 @@ func initMysql() {
 	sqlDB.SetMaxOpenConns(100)                 // 最大打开连接数
 	sqlDB.SetConnMaxLifetime(time.Hour)        // 连接最大生命周期
 
-	err = model.InitTable(DB)
+	err = model.InitTable(db)
 	if err != nil {
 		log.Fatalf("Failed to initialize database tables: %v", err)
 	}
 
 	log.Println("Database connection established successfully")
 }
+

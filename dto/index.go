@@ -14,6 +14,24 @@ const (
 	Success  = 100
 )
 
+type BaseRequest interface {
+	Examine() error
+}
+
+func examineRequest(req BaseRequest) error {
+	return req.Examine()
+}
+
+func BindData(c *gin.Context, req BaseRequest) error {
+	if err := c.ShouldBindJSON(req); err != nil {
+		return err
+	}
+	if err := examineRequest(req); err != nil {
+		return err
+	}
+	return nil
+}
+
 // 约定code
 // 0: 失败
 // 1: token过期，前端用存储的账号密码重新登录/跳回登录页

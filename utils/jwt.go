@@ -22,7 +22,7 @@ func WithExpiry(expiry time.Duration) func(time *time.Duration) {
 	}
 }
 
-func GenerateToken(userId int, opts ...expiryOptions) (string, error) {
+func GenerateToken(userId uint, opts ...expiryOptions) (string, error) {
 	expiry := time.Hour * 24 * 7
 	for _, opt := range opts {
 		opt(&expiry)
