@@ -1,6 +1,7 @@
 package utils
 
 import (
+	"fmt"
 	"strings"
 	"time"
 
@@ -39,10 +40,12 @@ func GenerateToken(userId uint, opts ...expiryOptions) (string, error) {
 
 func ParseToken(tokenStr string) int {
 	tokenString := strings.TrimPrefix(tokenStr, "Bearer ")
+	fmt.Println("tokenString:", tokenString)
 	token, err := jwt.ParseWithClaims(tokenString, &customClaims{}, func(token *jwt.Token) (interface{}, error) {
 		return jwtKey, nil
 	})
 	if err != nil {
+		fmt.Println("ParseToken err:", err)
 		return 0
 	}
 	// 断言 Claims 类型并校验 token 有效性

@@ -1,7 +1,7 @@
 package main
 
 import (
-	_ "chinese-chess-backend/database"
+	// _ "chinese-chess-backend/database"
 	"chinese-chess-backend/route"
 	"chinese-chess-backend/config"
 )

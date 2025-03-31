@@ -7,6 +7,7 @@ import (
 	"chinese-chess-backend/service"
 
 	"chinese-chess-backend/middleware"
+	"chinese-chess-backend/websocket"
 )
 
 func SetupRouter() *gin.Engine {
@@ -14,10 +15,10 @@ func SetupRouter() *gin.Engine {
 
 	// 设置跨域请求
 	r.Use(middleware.CorsMiddleware())
-	r.Use(middleware.AuthMiddleware())
+	// r.Use(middleware.AuthMiddleware())
 
 	user := controller.NewUserController(service.NewUserService())
-	
+
 	// 设置路由组
 	api := r.Group("/api")
 	// userRoute := api.Group("/user")
@@ -26,9 +27,10 @@ func SetupRouter() *gin.Engine {
 	publicRoute.POST("/register", user.Register)
 	publicRoute.POST("/login", user.Login)
 	publicRoute.POST("/send-code", user.SendVCode)
-
-
+	
+	hub := websocket.NewChessHub()
+	r.GET("/ws", hub.HandleConnection)
+	go hub.Run()
 
 	return r
 }
-
