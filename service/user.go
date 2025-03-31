@@ -21,6 +21,17 @@ func (us *UserService) Register(req *dto.RegisterRequest) (dto.RegisterResponse,
 	var registerResp dto.RegisterResponse
 	var err error
 
+	user := userModel.User{
+		Name:     req.Name,
+		Email:    req.Email,
+	}
+
+	// 校验邮箱是否已注册
+	db := database.GetMysqlDb()
+	if err = db.Where("email = ?", req.Email).First(&user).Error; err == nil {
+		return registerResp, errors.New("邮箱已注册")
+	}
+
 	code, err := database.GetValue(req.Email)
 
 	if err != nil {
@@ -37,13 +48,8 @@ func (us *UserService) Register(req *dto.RegisterRequest) (dto.RegisterResponse,
 		return registerResp, err
 	}
 
-	user := userModel.User{
-		Name:     req.Name,
-		Email:    req.Email,
-		Password: hashPass,
-	}
+	user.Password = hashPass
 
-	db := database.GetMysqlDb()
 	db.Create(&user)
 
 	// 签发token
