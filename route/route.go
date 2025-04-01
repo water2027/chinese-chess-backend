@@ -2,6 +2,7 @@ package route
 
 import (
 	"github.com/gin-gonic/gin"
+	"github.com/gin-contrib/cors"
 
 	"chinese-chess-backend/controller"
 	"chinese-chess-backend/service"
@@ -14,7 +15,12 @@ func SetupRouter() *gin.Engine {
 	r := gin.Default()
 
 	// 设置跨域请求
-	r.Use(middleware.CorsMiddleware())
+	r.Use(cors.New(cors.Config{
+		AllowOrigins: []string{"http://localhost:5173", "http://localhost"},
+		AllowMethods: []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
+		AllowHeaders: []string{"Origin", "Content-Type", "Accept", "Authorization"},
+	}))
+	// r.Use(middleware.CorsMiddleware())
 	r.Use(middleware.AuthMiddleware())
 
 	user := controller.NewUserController(service.NewUserService())
