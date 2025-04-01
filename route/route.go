@@ -16,10 +16,13 @@ func SetupRouter() *gin.Engine {
 	r := gin.Default()
 
 	origin := os.Getenv("FRONTEND_URL")
+	if origin == "" {
+		origin = "http://localhost:5173" // 默认值
+	}
 
 	// 设置跨域请求
 	r.Use(cors.New(cors.Config{
-		AllowOrigins: []string{"http://localhost:5173", origin},
+		AllowOrigins: []string{origin},
 		AllowMethods: []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
 		AllowHeaders: []string{"Origin", "Content-Type", "Accept", "Authorization"},
 	}))
