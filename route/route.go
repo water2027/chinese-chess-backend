@@ -29,7 +29,8 @@ func SetupRouter() *gin.Engine {
 	user := controller.NewUserController(service.NewUserService())
 
 	// 设置路由组
-	api := r.Group("/api")
+	base := r.Group("/chess")
+	api := base.Group("/api")
 	api.POST("/info", user.GetUserInfo)
 	// userRoute := api.Group("/user")
 
@@ -39,7 +40,7 @@ func SetupRouter() *gin.Engine {
 	publicRoute.POST("/send-code", user.SendVCode)
 
 	hub := websocket.NewChessHub()
-	r.GET("/ws", hub.HandleConnection)
+	base.GET("/ws", hub.HandleConnection)
 	go hub.Run()
 
 	return r
