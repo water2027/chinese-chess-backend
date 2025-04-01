@@ -36,7 +36,7 @@ type startMessage struct {
 	Role string `json:"role"`
 }
 
-type HeartbeatMessage struct {
+type endMessage struct {
 	BaseMessage
-	Timestamp int64 `json:"timestamp"`
+	Winner string `json:"winner"`
 }

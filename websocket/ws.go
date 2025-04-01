@@ -73,13 +73,13 @@ type ChessHub struct {
 func NewChessHub() *ChessHub {
 	pool := utils.NewWorkerPool()
 	hub := &ChessHub{
-		Rooms:    make(map[int](*ChessRoom)),
-		Clients:  make(map[int]*Client),
-		NextId:   0,
-		commands: make(chan hubCommand),
+		Rooms:      make(map[int](*ChessRoom)),
+		Clients:    make(map[int]*Client),
+		NextId:     0,
+		commands:   make(chan hubCommand),
 		spareRooms: make([]int, 0),
-		mu:       sync.Mutex{},
-		pool:     pool,
+		mu:         sync.Mutex{},
+		pool:       pool,
 	}
 	pool.Start()
 
@@ -165,16 +165,16 @@ func (ch *ChessHub) Run() {
 					})
 					return nil
 				}
-	
+
 				var target *Client
 				if room.Current == req.from {
 					target = room.Next
 				} else {
 					target = room.Current
 				}
-	
+
 				ch.sendMessageInternal(target, req.move)
-	
+
 				// 交换当前玩家和下一个玩家
 				if room.Current == req.from {
 					room.Current = room.Next
@@ -189,7 +189,7 @@ func (ch *ChessHub) Run() {
 				if err != nil {
 					return fmt.Errorf("发送消息失败: %v", err)
 				}
-	
+
 			case start:
 				room := ch.Rooms[cmd.client.RoomId]
 				if room == nil {
@@ -215,6 +215,7 @@ func (ch *ChessHub) Run() {
 				ch.sendMessageInternal(room.Current, cur)
 				ch.sendMessageInternal(room.Next, next)
 			case end:
+				winner := cmd.payload.(string)
 				room := ch.Rooms[cmd.client.RoomId]
 				if room == nil {
 					ch.sendMessageInternal(cmd.client, NormalMessage{
@@ -228,9 +229,12 @@ func (ch *ChessHub) Run() {
 				room.Current.RoomId = -1
 				room.Next.RoomId = -1
 				// 发送消息给两个客户端，通知他们结束游戏
-				endMessage := BaseMessage{Type: End}
-				ch.sendMessageInternal(room.Current, endMessage)
-				ch.sendMessageInternal(room.Next, endMessage)
+				endMsg := endMessage{
+					BaseMessage: BaseMessage{Type: End},
+					Winner:     winner,
+				}
+				ch.sendMessageInternal(room.Current, endMsg)
+				ch.sendMessageInternal(room.Next, endMsg)
 				room.Current = nil
 				room.Next = nil
 				delete(ch.Rooms, cmd.client.RoomId)
@@ -380,10 +384,17 @@ func (ch *ChessHub) handleMessage(client *Client, rawMessage []byte) error {
 			return fmt.Errorf("玩家不在游戏中")
 		}
 	case End:
+		var endMsg endMessage
+		err := json.Unmarshal(rawMessage, &endMsg)
+		if err != nil {
+			fmt.Printf("解析结束消息失败: %v\n", err)
+			return nil
+		}
 		if client.Status == Playing {
 			ch.commands <- hubCommand{
 				commandType: end,
 				client:      client,
+				payload:     endMsg.Winner,
 			}
 		}
 
