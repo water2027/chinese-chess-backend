@@ -1,8 +1,9 @@
 package route
 
 import (
-	"github.com/gin-gonic/gin"
 	"github.com/gin-contrib/cors"
+	"github.com/gin-gonic/gin"
+	"os"
 
 	"chinese-chess-backend/controller"
 	"chinese-chess-backend/service"
@@ -14,9 +15,11 @@ import (
 func SetupRouter() *gin.Engine {
 	r := gin.Default()
 
+	origin := os.Getenv("FRONTEND_URL")
+
 	// 设置跨域请求
 	r.Use(cors.New(cors.Config{
-		AllowOrigins: []string{"http://localhost:5173", "http://localhost"},
+		AllowOrigins: []string{"http://localhost:5173", origin},
 		AllowMethods: []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
 		AllowHeaders: []string{"Origin", "Content-Type", "Accept", "Authorization"},
 	}))
@@ -29,12 +32,12 @@ func SetupRouter() *gin.Engine {
 	api := r.Group("/api")
 	api.POST("/info", user.GetUserInfo)
 	// userRoute := api.Group("/user")
-	
+
 	publicRoute := api.Group("/public")
 	publicRoute.POST("/register", user.Register)
 	publicRoute.POST("/login", user.Login)
 	publicRoute.POST("/send-code", user.SendVCode)
-	
+
 	hub := websocket.NewChessHub()
 	r.GET("/ws", hub.HandleConnection)
 	go hub.Run()
