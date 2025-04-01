@@ -30,3 +30,13 @@ type NormalMessage struct {
 	BaseMessage
 	Message string `json:"message"`
 }
+
+type startMessage struct {
+	BaseMessage
+	Role string `json:"role"`
+}
+
+type HeartbeatMessage struct {
+	BaseMessage
+	Timestamp int64 `json:"timestamp"`
+}

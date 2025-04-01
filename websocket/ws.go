@@ -7,10 +7,16 @@ import (
 
 	"encoding/json"
 	"net/http"
+	"time"
 
 	"github.com/gorilla/websocket"
 
 	"chinese-chess-backend/dto"
+)
+
+const (
+	HeartbeatInterval = 5 * time.Second // 发送心跳的间隔
+	HeartbeatTimeout  = 30 * time.Second // 心跳超时时间
 )
 
 var upgrader = &websocket.Upgrader{
@@ -35,6 +41,7 @@ type Client struct {
 	Id     int
 	Status clientStatus
 	RoomId int
+	LastPong       time.Time // 上次收到PONG的时间
 }
 
 type ChessRoom struct {
@@ -58,12 +65,14 @@ type ChessHub struct {
 }
 
 func NewChessHub() *ChessHub {
-	return &ChessHub{
+	hub := &ChessHub{
 		Rooms:    make(map[int](*ChessRoom)),
 		Clients:  make(map[int]*Client),
 		NextId:   0,
 		commands: make(chan hubCommand),
 	}
+	
+	return hub
 }
 
 func (ch *ChessHub) Run() {
@@ -168,9 +177,10 @@ func (ch *ChessHub) Run() {
 			}
 			room.Current.Status = Playing
 			room.Next.Status = Playing
-			startMessage := BaseMessage{Type: Start}
-			ch.sendMessageInternal(room.Current, startMessage)
-			ch.sendMessageInternal(room.Next, startMessage)
+			cur := startMessage{BaseMessage: BaseMessage{Type: Start}, Role: "red"}
+			next := startMessage{BaseMessage: BaseMessage{Type: Start}, Role: "black"}
+			ch.sendMessageInternal(room.Current, cur)
+			ch.sendMessageInternal(room.Next, next)
 		case end:
 			room := ch.Rooms[cmd.client.RoomId]
 			if room == nil {
@@ -188,6 +198,10 @@ func (ch *ChessHub) Run() {
 			room.Current = nil
 			room.Next = nil
 			delete(ch.Rooms, cmd.client.RoomId)
+		case heartbeat:
+			// 更新客户端的最后一次心跳时间
+			client := cmd.client
+			client.LastPong = time.Now()
 		}
 
 	}
@@ -213,6 +227,7 @@ func (ch *ChessHub) HandleConnection(c *gin.Context) {
 	}
 	defer conn.Close()
 
+	
 	// 创建一个新的客户端
 	client := &Client{
 		Conn:   conn,
@@ -220,6 +235,32 @@ func (ch *ChessHub) HandleConnection(c *gin.Context) {
 		Status: Online,
 		RoomId: -1,
 	}
+
+	conn.SetReadLimit(1024 * 1024)
+	conn.SetPongHandler(func(string) error {
+		conn.SetReadDeadline(time.Now().Add(HeartbeatTimeout))
+		client.LastPong = time.Now()
+		return nil
+	})
+	conn.SetCloseHandler(func(code int, text string) error {
+		fmt.Printf("WebSocket connection closed with code %d: %s\n", code, text)
+		return nil
+	})
+
+	conn.SetReadDeadline(time.Now().Add(HeartbeatTimeout))
+
+	go func() {
+        ticker := time.NewTicker(HeartbeatInterval)
+        defer ticker.Stop()
+
+		for range ticker.C {
+			conn.SetWriteDeadline(time.Now().Add(10 * time.Second))
+			if err := conn.WriteMessage(websocket.PingMessage, nil); err != nil {
+				fmt.Printf("发送 ping 失败: %v\n", err)
+				return
+			}
+		}
+    }()
 
 	ch.commands <- hubCommand{
 		commandType: register,
@@ -311,6 +352,7 @@ func (ch *ChessHub) handleMessage(client *Client, rawMessage []byte) error {
 				client:      client,
 			}
 		}
+
 	}
 
 	return nil

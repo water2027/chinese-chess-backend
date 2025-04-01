@@ -10,6 +10,7 @@ const (
 	sendMessage                        // 发送消息
 	start                              // 开始游戏
 	end                                // 结束游戏
+	heartbeat                          // 心跳
 )
 
 type moveRequest struct {
