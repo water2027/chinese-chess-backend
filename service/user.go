@@ -112,3 +112,19 @@ func (us *UserService) SendVCode(req *dto.SendVCodeRequest) error {
 
 	return nil
 }
+
+func (uc *UserService) GetUserInfo(req *dto.GetUserInfoRequest) (*dto.GetUserInfoResponse, error) {
+	var userInfoResp dto.GetUserInfoResponse
+	var err error
+
+	// 查询用户
+	db := database.GetMysqlDb()
+	user := userModel.User{}
+	if err = db.Where("id = ?", req.Id).First(&user).Error; err != nil {
+		return nil, errors.New("用户不存在")
+	}
+
+	userInfoResp.Name = user.Name
+
+	return &userInfoResp, nil
+}

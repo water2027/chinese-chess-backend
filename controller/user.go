@@ -66,3 +66,19 @@ func (uc *UserController) SendVCode(c *gin.Context) {
 	}
 	dto.SuccessResponse(c, dto.WithMessage("验证码发送成功"))
 }
+
+func (uc *UserController) GetUserInfo(c *gin.Context) {
+	var req user.GetUserInfoRequest
+	err := dto.BindData(c, &req)
+	if err != nil {
+		dto.ErrorResponse(c, dto.WithMessage("参数解析失败"))
+		return
+	}
+
+	resp, err := uc.userService.GetUserInfo(&req)
+	if err != nil {
+		dto.ErrorResponse(c, dto.WithMessage(err.Error()))
+		return
+	}
+	dto.SuccessResponse(c, dto.WithData(resp))
+}

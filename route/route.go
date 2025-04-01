@@ -27,6 +27,7 @@ func SetupRouter() *gin.Engine {
 
 	// 设置路由组
 	api := r.Group("/api")
+	api.POST("/info", user.GetUserInfo)
 	// userRoute := api.Group("/user")
 	
 	publicRoute := api.Group("/public")
