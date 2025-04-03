@@ -22,7 +22,7 @@ func (uc *UserController) Register(c *gin.Context) {
 	var req user.RegisterRequest
 	err := dto.BindData(c, &req)
 	if err != nil {
-		dto.ErrorResponse(c, dto.WithMessage("参数解析失败"))
+		dto.ErrorResponse(c, dto.WithMessage(err.Error()))
 		return
 	}
 
@@ -39,7 +39,7 @@ func (uc *UserController) Login(c *gin.Context) {
 	var req user.LoginRequest
 	err := dto.BindData(c, &req)
 	if err != nil {
-		dto.ErrorResponse(c, dto.WithMessage("参数解析失败"))
+		dto.ErrorResponse(c, dto.WithMessage(err.Error()))
 		return
 	}
 
@@ -55,7 +55,7 @@ func (uc *UserController) SendVCode(c *gin.Context) {
 	var req user.SendVCodeRequest
 	err := dto.BindData(c, &req)
 	if err != nil {
-		dto.ErrorResponse(c, dto.WithMessage("参数解析失败"))
+		dto.ErrorResponse(c, dto.WithMessage(err.Error()))
 		return
 	}
 
@@ -71,7 +71,7 @@ func (uc *UserController) GetUserInfo(c *gin.Context) {
 	var req user.GetUserInfoRequest
 	err := dto.BindData(c, &req)
 	if err != nil {
-		dto.ErrorResponse(c, dto.WithMessage("参数解析失败"))
+		dto.ErrorResponse(c, dto.WithMessage(err.Error()))
 		return
 	}
 
