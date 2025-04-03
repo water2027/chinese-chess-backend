@@ -49,12 +49,14 @@ type Client struct {
 }
 
 type ChessRoom struct {
+	Id      int
 	Current *Client // 先进入房间的作为先手，默认为当前玩家
 	Next    *Client // 后进入房间的作为后手，默认为下一个玩家
 }
 
 func NewChessRoom() *ChessRoom {
 	return &ChessRoom{
+		Id:      0,
 		Current: nil,
 		Next:    nil,
 	}
@@ -117,8 +119,9 @@ func (ch *ChessHub) Run() {
 				if len(ch.spareRooms) == 0 {
 					// 没有空闲房间，创建一个新的房间
 					room := NewChessRoom()
+					room.Id = ch.NextId
 					room.Current = client
-					client.RoomId = ch.NextId
+					client.RoomId = room.Id
 					ch.Rooms[ch.NextId] = room
 					ch.NextId++
 					ch.spareRooms = append(ch.spareRooms, client.RoomId)
@@ -231,7 +234,7 @@ func (ch *ChessHub) Run() {
 				// 发送消息给两个客户端，通知他们结束游戏
 				endMsg := endMessage{
 					BaseMessage: BaseMessage{Type: End},
-					Winner:     winner,
+					Winner:      winner,
 				}
 				ch.sendMessageInternal(room.Current, endMsg)
 				ch.sendMessageInternal(room.Next, endMsg)
