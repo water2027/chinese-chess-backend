@@ -106,6 +106,18 @@ func (ch *ChessHub) Run() {
 				client := cmd.client
 				roomId := client.RoomId
 				if room, ok := ch.Rooms[roomId]; ok {
+					var target *Client
+					if room.Current == client {
+						target = room.Next
+					} else {
+						target = room.Current
+					}
+					if target != nil {
+						ch.sendMessageInternal(target, NormalMessage{
+							BaseMessage: BaseMessage{Type: Normal},
+							Message: "对方已断开连接",
+						})
+					}
 					room.Current = nil
 					room.Next = nil
 					delete(ch.Rooms, roomId)
