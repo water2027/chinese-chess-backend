@@ -15,7 +15,10 @@ import (
 	"github.com/gorilla/websocket"
 
 	"chinese-chess-backend/dto"
+	"chinese-chess-backend/dto/room"
+	"chinese-chess-backend/dto/user"
 	"chinese-chess-backend/utils"
+	"slices"
 )
 
 const (
@@ -67,7 +70,7 @@ type ChessHub struct {
 	Clients    map[int]*Client
 	NextId     int
 	commands   chan hubCommand
-	spareRooms []int // 有空位的房间id
+	spareRooms []room.RoomInfo // 有空位的房间id
 	mu         sync.Mutex
 	pool       *utils.WorkerPool
 }
@@ -79,7 +82,7 @@ func NewChessHub() *ChessHub {
 		Clients:    make(map[int]*Client),
 		NextId:     0,
 		commands:   make(chan hubCommand),
-		spareRooms: make([]int, 0),
+		spareRooms: make([]room.RoomInfo, 0),
 		mu:         sync.Mutex{},
 		pool:       pool,
 	}
@@ -115,12 +118,19 @@ func (ch *ChessHub) Run() {
 					if target != nil {
 						ch.sendMessageInternal(target, NormalMessage{
 							BaseMessage: BaseMessage{Type: Normal},
-							Message: "对方已断开连接",
+							Message:     "对方已断开连接",
 						})
 					}
 					room.Current = nil
 					room.Next = nil
 					delete(ch.Rooms, roomId)
+					// 如果房间原本只有一个人，那么删除房间
+					for i, r := range ch.spareRooms {
+						if r.Id == roomId {
+							ch.spareRooms = slices.Delete(ch.spareRooms, i, i+1)
+							break
+						}
+					}
 				}
 				if _, ok := ch.Clients[client.Id]; ok {
 					delete(ch.Clients, client.Id)
@@ -130,19 +140,27 @@ func (ch *ChessHub) Run() {
 				client := cmd.client
 				if len(ch.spareRooms) == 0 {
 					// 没有空闲房间，创建一个新的房间
-					room := NewChessRoom()
-					room.Id = ch.NextId
-					room.Current = client
-					client.RoomId = room.Id
-					ch.Rooms[ch.NextId] = room
+					r := NewChessRoom()
+					r.Id = ch.NextId
+					r.Current = client
+					client.RoomId = r.Id
+					ch.Rooms[ch.NextId] = r
 					ch.NextId++
-					ch.spareRooms = append(ch.spareRooms, client.RoomId)
+					roomInfo := room.RoomInfo{
+						Id: client.RoomId,
+						Current: user.UserInfo{
+							ID: uint(client.Id),
+						},
+					}
+					ch.spareRooms = append(ch.spareRooms, roomInfo)
+					fmt.Printf("创建新房间: %d\n", r.Id)
+					fmt.Println(ch.spareRooms)
 					return nil
 				}
 				// 有空闲房间，加入到空闲房间中
-				roomId := ch.spareRooms[0]
+				roomInfo := ch.spareRooms[0]
 				ch.spareRooms = ch.spareRooms[1:]
-				room := ch.Rooms[roomId]
+				room := ch.Rooms[roomInfo.Id]
 				if room == nil {
 					ch.sendMessageInternal(client, NormalMessage{
 						BaseMessage: BaseMessage{Type: Normal},
@@ -152,10 +170,10 @@ func (ch *ChessHub) Run() {
 				}
 				if room.Current == nil {
 					room.Current = client
-					client.RoomId = roomId
+					client.RoomId = roomInfo.Id
 				} else if room.Next == nil {
 					room.Next = client
-					client.RoomId = roomId
+					client.RoomId = roomInfo.Id
 				} else {
 					ch.sendMessageInternal(client, NormalMessage{
 						BaseMessage: BaseMessage{Type: Normal},
@@ -347,6 +365,15 @@ func (ch *ChessHub) HandleConnection(c *gin.Context) {
 		}
 	}
 	fmt.Println("客户端断开连接")
+}
+
+func (ch *ChessHub) GetSpareRooms(c *gin.Context) {
+	ch.mu.Lock()
+	defer ch.mu.Unlock()
+
+	fmt.Println(ch.spareRooms)
+	c.Set("rooms", ch.spareRooms)
+	c.Next()
 }
 
 func (ch *ChessHub) handleMessage(client *Client, rawMessage []byte) error {

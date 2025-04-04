@@ -42,6 +42,5 @@ func (r *RegisterRequest) Examine() error {
 }
 
 type RegisterResponse struct {
-	Token string `json:"token"`
-	Name  string `json:"name"`
+	UserInfo
 }

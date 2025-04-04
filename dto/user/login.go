@@ -19,6 +19,5 @@ func (r *LoginRequest) Examine() error {
 }
 
 type LoginResponse struct {
-	Token string `json:"token"`
-	Name  string `json:"name"`
+	UserInfo
 }

@@ -16,6 +16,5 @@ func (r *GetUserInfoRequest) Examine() error {
 }
 
 type GetUserInfoResponse struct {
-	Id     int    `json:"id"`
-	Name   string `json:"name"`
+	UserInfo
 }
