@@ -23,11 +23,13 @@ func AuthMiddleware() gin.HandlerFunc {
 			token := c.Query("token")
 			if token == "" {
 				dto.ErrorResponse(c, dto.WithMessage("未登录或token错误"))
+				c.Abort()
 				return
 			}
 			userId = utils.ParseToken(token)
 			if userId <= 0 {
 				dto.ErrorResponse(c, dto.WithMessage("未登录或token错误"))
+				c.Abort()
 				return
 			}
 		}
