@@ -121,7 +121,7 @@ func (ch *ChessHub) Run() {
 				ch.matchPool = append(ch.matchPool, client)
 				fmt.Println(ch.matchPool)
 				if len(ch.matchPool) < 2 {
-					ch.sendMessageInternal(client, NormalMessage{
+					client.sendMessage(NormalMessage{
 						BaseMessage: BaseMessage{Type: messageNormal},
 						Message:     "正在匹配，请稍等",
 					})
@@ -146,7 +146,7 @@ func (ch *ChessHub) Run() {
 				req := cmd.payload.(moveRequest)
 				room := ch.Rooms[req.from.RoomId]
 				if room == nil {
-					ch.sendMessageInternal(req.from, NormalMessage{
+					req.from.sendMessage(NormalMessage{
 						BaseMessage: BaseMessage{Type: messageNormal},
 						Message:     "房间不存在",
 					})
@@ -154,7 +154,7 @@ func (ch *ChessHub) Run() {
 				}
 
 				if !room.isFull() {
-					ch.sendMessageInternal(req.from, NormalMessage{
+					req.from.sendMessage(NormalMessage{
 						BaseMessage: BaseMessage{Type: messageNormal},
 						Message:     "游戏未开始",
 					})
@@ -163,7 +163,7 @@ func (ch *ChessHub) Run() {
 
 				if room.Current != req.from {
 					// 如果不是当前玩家，则不允许移动
-					ch.sendMessageInternal(req.from, NormalMessage{
+					req.from.sendMessage(NormalMessage{
 						BaseMessage: BaseMessage{Type: messageNormal},
 						Message:     "请等待对方移动",
 					})
@@ -172,7 +172,7 @@ func (ch *ChessHub) Run() {
 
 				target := room.Next
 
-				ch.sendMessageInternal(target, req.move)
+				target.sendMessage(req.move)
 
 				// 交换当前玩家和下一个玩家
 				room.exchange()
@@ -187,14 +187,14 @@ func (ch *ChessHub) Run() {
 				if room == nil {
 					cmd.client.RoomId = -1
 					cmd.client.Status = userOnline
-					ch.sendMessageInternal(cmd.client, NormalMessage{
+					cmd.client.sendMessage(NormalMessage{
 						BaseMessage: BaseMessage{Type: messageNormal},
 						Message:     "请进行匹配",
 					})
 					return nil
 				}
 				if !room.isFull() {
-					ch.sendMessageInternal(cmd.client, NormalMessage{
+					cmd.client.sendMessage(NormalMessage{
 						BaseMessage: BaseMessage{Type: messageNormal},
 						Message:     "房间未满员，无法开始游戏",
 					})
@@ -204,8 +204,8 @@ func (ch *ChessHub) Run() {
 				room.Next.startPlay(roleBlack)
 				cur := startMessage{BaseMessage: BaseMessage{Type: messageStart}, Role: "red"}
 				next := startMessage{BaseMessage: BaseMessage{Type: messageStart}, Role: "black"}
-				ch.sendMessageInternal(room.Current, cur)
-				ch.sendMessageInternal(room.Next, next)
+				room.Current.sendMessage(cur)
+				room.Next.sendMessage(next)
 				// 移除空余房间
 				ch.mu.Lock()
 				for i, r := range ch.spareRooms {
@@ -218,7 +218,7 @@ func (ch *ChessHub) Run() {
 			case commandEnd:
 				room := ch.Rooms[cmd.client.RoomId]
 				if room == nil {
-					ch.sendMessageInternal(cmd.client, NormalMessage{
+					cmd.client.sendMessage(NormalMessage{
 						BaseMessage: BaseMessage{Type: messageNormal},
 						Message:     "房间不存在",
 					})
@@ -230,8 +230,8 @@ func (ch *ChessHub) Run() {
 					BaseMessage: BaseMessage{Type: messageEnd},
 					Winner:      winner,
 				}
-				ch.sendMessageInternal(room.Current, endMsg)
-				ch.sendMessageInternal(room.Next, endMsg)
+				room.Current.sendMessage(endMsg)
+				room.Next.sendMessage(endMsg)
 				room.clear()
 				delete(ch.Rooms, cmd.client.RoomId)
 			case commandHeartbeat:
@@ -252,7 +252,7 @@ func (ch *ChessHub) Run() {
 				}
 				err := room.join(cmd.client)
 				if err != nil {
-					ch.sendMessageInternal(cmd.client, NormalMessage{
+					cmd.client.sendMessage(NormalMessage{
 						BaseMessage: BaseMessage{Type: messageNormal},
 						Message:     err.Error(),
 					})
@@ -486,12 +486,5 @@ func (ch *ChessHub) sendMessage(client *Client, message any) {
 			target:  client,
 			message: message,
 		},
-	}
-}
-
-func (ch *ChessHub) sendMessageInternal(client *Client, message any) {
-	err := client.Conn.WriteJSON(message)
-	if err != nil {
-		fmt.Printf("发送消息失败: %v\n", err)
 	}
 }
