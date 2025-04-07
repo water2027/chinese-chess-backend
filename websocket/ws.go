@@ -96,8 +96,7 @@ func (ch *ChessHub) Run() {
 							Message:     "对方已断开连接",
 						})
 					}
-					room.Current = nil
-					room.Next = nil
+					room.clear()
 					ch.mu.Lock()
 					delete(ch.Rooms, roomId)
 					// 如果房间原本只有一个人，那么删除房间
@@ -116,7 +115,7 @@ func (ch *ChessHub) Run() {
 				}
 				ch.mu.Unlock()
 				database.DeleteValue(fmt.Sprint(client.Id))
-			case match: // 应该写一个匹配池，存放所有正在匹配的用户，而不是创建房间
+			case match: 
 				client := cmd.client
 				ch.mu.Lock()
 				ch.matchPool = append(ch.matchPool, client)
@@ -154,30 +153,35 @@ func (ch *ChessHub) Run() {
 					return nil
 				}
 
-				var target *Client
-				if room.Current == req.from {
-					target = room.Next
-				} else {
-					target = room.Current
+				if !room.isFull() {
+					ch.sendMessageInternal(req.from, NormalMessage{
+						BaseMessage: BaseMessage{Type: Normal},
+						Message:     "游戏未开始",
+					})
+					return nil
 				}
+
+				if room.Current != req.from {
+					// 如果不是当前玩家，则不允许移动
+					ch.sendMessageInternal(req.from, NormalMessage{
+						BaseMessage: BaseMessage{Type: Normal},
+						Message:     "请等待对方移动",
+					})
+					return nil
+				}
+
+				target := room.Next
 
 				ch.sendMessageInternal(target, req.move)
 
 				// 交换当前玩家和下一个玩家
-				if room.Current == req.from {
-					room.Current = room.Next
-					room.Next = req.from
-				} else {
-					room.Next = room.Current
-					room.Current = req.from
-				}
+				room.exchange()
 			case sendMessage:
 				req := cmd.payload.(sendMessageRequest)
 				err := req.target.Conn.WriteJSON(req.message)
 				if err != nil {
 					return fmt.Errorf("发送消息失败: %v", err)
 				}
-
 			case start:
 				room := ch.Rooms[cmd.client.RoomId]
 				if room == nil {
@@ -221,10 +225,6 @@ func (ch *ChessHub) Run() {
 					})
 					return nil
 				}
-				room.Current.Status = Online
-				room.Next.Status = Online
-				room.Current.RoomId = -1
-				room.Next.RoomId = -1
 				// 发送消息给两个客户端，通知他们结束游戏
 				endMsg := endMessage{
 					BaseMessage: BaseMessage{Type: End},
@@ -232,8 +232,7 @@ func (ch *ChessHub) Run() {
 				}
 				ch.sendMessageInternal(room.Current, endMsg)
 				ch.sendMessageInternal(room.Next, endMsg)
-				room.Current = nil
-				room.Next = nil
+				room.clear()
 				delete(ch.Rooms, cmd.client.RoomId)
 			case heartbeat:
 				// 更新客户端的最后一次心跳时间
@@ -384,7 +383,6 @@ func (ch *ChessHub) GetSpareRooms(c *gin.Context) {
 	ch.mu.Lock()
 	defer ch.mu.Unlock()
 
-	fmt.Println(ch.spareRooms)
 	c.Set("rooms", ch.spareRooms)
 	c.Next()
 }

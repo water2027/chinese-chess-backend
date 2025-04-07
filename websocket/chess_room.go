@@ -56,6 +56,27 @@ func (cr *ChessRoom) isFull() bool {
 	return cr.Nums >= 2
 }
 
+func (cr *ChessRoom) exchange() {
+	if cr.Current == nil || cr.Next == nil {
+		return
+	}
+	cr.Current, cr.Next = cr.Next, cr.Current
+}
+
+func(cr *ChessRoom) clear() {
+	if cr.Current != nil {
+		cr.Current.RoomId = -1
+		cr.Current.Status = Online
+		cr.Current = nil
+	}
+	if cr.Next != nil {
+		cr.Next.RoomId = -1
+		cr.Next.Status = Online
+		cr.Next = nil
+	}
+	cr.Nums = 0
+}
+
 func (cr *ChessRoom) join(c *Client) error {
 	if cr.isFull() {
 		return fmt.Errorf("房间满了")
