@@ -10,18 +10,18 @@ import (
 type clientStatus int
 
 const (
-	Online clientStatus = iota + 1
-	Playing
-	Matching
+	userOnline clientStatus = iota + 1
+	userPlaying
+	userMatching
 )
 
 type clientRole int
 
 const (
 	// 0表示没有角色，1表示红方，2表示黑方
-	None clientRole = iota
-	Red 
-	Black
+	roleNone clientRole = iota
+	roleRed 
+	roleBlack
 )
 
 type Client struct {
@@ -37,9 +37,9 @@ func NewClient(conn *websocket.Conn, id int) *Client {
 	return &Client{
 		Conn:     conn,
 		Id:       id,
-		Status:   Online,
+		Status:   userOnline,
 		RoomId:   -1,
-		Role:     None,
+		Role:     roleNone,
 		LastPong: time.Now(),
 	}
 }
@@ -57,5 +57,5 @@ func (c *Client) sendMessage(message any) error {
 
 func (c *Client) startPlay(role clientRole) {
 	c.Role = role
-	c.Status = Playing
+	c.Status = userPlaying
 }

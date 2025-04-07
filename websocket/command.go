@@ -3,16 +3,16 @@ package websocket
 type CommendType int
 
 const (
-	register    CommendType = iota + 1 // 注册
-	unregister                         // 注销
-	match                              // 匹配
-	move                               // 移动
-	sendMessage                        // 发送消息
-	start                              // 开始游戏
-	end                                // 结束游戏
-	join                               // 加入房间
-	create                             // 创建房间
-	heartbeat                          // 心跳
+	commandRegister    CommendType = iota + 1 // 注册
+	commandUnregister                         // 注销
+	commandMatch                              // 匹配
+	commandMove                               // 移动
+	commandSendMessage                        // 发送消息
+	commandStart                              // 开始游戏
+	commandEnd                                // 结束游戏
+	commandJoin                               // 加入房间
+	commandCreate                             // 创建房间
+	commandHeartbeat                          // 心跳
 )
 
 type moveRequest struct {
