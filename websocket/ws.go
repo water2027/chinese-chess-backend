@@ -189,7 +189,7 @@ func (ch *ChessHub) Run() {
 					})
 					return nil
 				}
-				if room.Current == nil || room.Next == nil {
+				if !room.isFull() {
 					ch.sendMessageInternal(cmd.client, NormalMessage{
 						BaseMessage: BaseMessage{Type: Normal},
 						Message:     "房间未满员，无法开始游戏",
@@ -259,6 +259,15 @@ func (ch *ChessHub) Run() {
 						client:      cmd.client,
 					}
 				}()
+				// 移除空余房间
+				ch.mu.Lock()
+				for i, r := range ch.spareRooms {
+					if r.Id == joinMsg.RoomId {
+						ch.spareRooms = slices.Delete(ch.spareRooms, i, i+1)
+						break
+					}
+				}
+				ch.mu.Unlock()
 			case create:
 				// 创建房间
 				client := cmd.client
