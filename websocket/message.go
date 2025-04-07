@@ -45,5 +45,5 @@ type joinMessage struct {
 
 type endMessage struct {
 	BaseMessage
-	Winner string `json:"winner"`
+	Winner clientRole `json:"winner"`
 }

@@ -178,7 +178,7 @@ func (ch *ChessHub) Run() {
 				room.exchange()
 			case sendMessage:
 				req := cmd.payload.(sendMessageRequest)
-				err := req.target.Conn.WriteJSON(req.message)
+				err := req.target.sendMessage(req.message)
 				if err != nil {
 					return fmt.Errorf("发送消息失败: %v", err)
 				}
@@ -200,8 +200,8 @@ func (ch *ChessHub) Run() {
 					})
 					return nil
 				}
-				room.Current.Status = Playing
-				room.Next.Status = Playing
+				room.Current.startPlay(Red)
+				room.Next.startPlay(Black)
 				cur := startMessage{BaseMessage: BaseMessage{Type: Start}, Role: "red"}
 				next := startMessage{BaseMessage: BaseMessage{Type: Start}, Role: "black"}
 				ch.sendMessageInternal(room.Current, cur)
@@ -216,7 +216,6 @@ func (ch *ChessHub) Run() {
 				}
 				ch.mu.Unlock()
 			case end:
-				winner := cmd.payload.(string)
 				room := ch.Rooms[cmd.client.RoomId]
 				if room == nil {
 					ch.sendMessageInternal(cmd.client, NormalMessage{
@@ -225,6 +224,7 @@ func (ch *ChessHub) Run() {
 					})
 					return nil
 				}
+				winner := room.Next.Role
 				// 发送消息给两个客户端，通知他们结束游戏
 				endMsg := endMessage{
 					BaseMessage: BaseMessage{Type: End},
@@ -314,12 +314,7 @@ func (ch *ChessHub) HandleConnection(c *gin.Context) {
 	defer conn.Close()
 
 	// 创建一个新的客户端
-	client := &Client{
-		Conn:   conn,
-		Id:     id,
-		Status: Online,
-		RoomId: -1,
-	}
+	client := NewClient(conn, id)
 
 	conn.SetReadLimit(1024 * 1024)
 	conn.SetPongHandler(func(string) error {
@@ -437,17 +432,10 @@ func (ch *ChessHub) handleMessage(client *Client, rawMessage []byte) error {
 			return fmt.Errorf("玩家不在游戏中")
 		}
 	case End:
-		var endMsg endMessage
-		err := json.Unmarshal(rawMessage, &endMsg)
-		if err != nil {
-			fmt.Printf("解析结束消息失败: %v\n", err)
-			return nil
-		}
 		if client.Status == Playing {
 			ch.commands <- hubCommand{
 				commandType: end,
 				client:      client,
-				payload:     endMsg.Winner,
 			}
 		}
 	case Join:

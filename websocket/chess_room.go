@@ -2,27 +2,8 @@ package websocket
 
 import (
 	"fmt"
-	"time"
 	"sync"
-
-	"github.com/gorilla/websocket"
 )
-
-type clientStatus int
-
-const (
-	Online clientStatus = iota + 1
-	Playing
-	Matching
-)
-
-type Client struct {
-	Conn     *websocket.Conn
-	Id       int
-	Status   clientStatus
-	RoomId   int
-	LastPong time.Time // 上次收到PONG的时间
-}
 
 var (
 	NextId int = 0
