@@ -67,7 +67,7 @@ func (cr *ChessRoom) join(c *Client) error {
 	c.RoomId = cr.Id
 	if cr.Current == nil {
 		cr.Current = c
-	} else if cr.Next == nil {
+	} else  {
 		cr.Next = c
 	}
 

@@ -115,7 +115,7 @@ func (ch *ChessHub) Run() {
 				}
 				ch.mu.Unlock()
 				database.DeleteValue(fmt.Sprint(client.Id))
-			case commandMatch: 
+			case commandMatch:
 				client := cmd.client
 				ch.mu.Lock()
 				ch.matchPool = append(ch.matchPool, client)
@@ -216,6 +216,8 @@ func (ch *ChessHub) Run() {
 				}
 				ch.mu.Unlock()
 			case commandEnd:
+				var winner clientRole
+
 				room := ch.Rooms[cmd.client.RoomId]
 				if room == nil {
 					cmd.client.sendMessage(NormalMessage{
@@ -224,7 +226,19 @@ func (ch *ChessHub) Run() {
 					})
 					return nil
 				}
-				winner := room.Next.Role
+				if cmd.payload == nil {
+					winner = cmd.client.Role
+				} else {
+					r := cmd.payload.(clientRole)
+					if r != roleNone {
+						if r == roleRed {
+							r = roleBlack
+						} else {
+							r = roleRed
+						}
+					}
+					winner = r
+				}
 				// 发送消息给两个客户端，通知他们结束游戏
 				endMsg := endMessage{
 					BaseMessage: BaseMessage{Type: messageEnd},
@@ -474,6 +488,14 @@ func (ch *ChessHub) handleMessage(client *Client, rawMessage []byte) error {
 		ch.commands <- hubCommand{
 			commandType: commandCreate,
 			client:      client,
+		}
+	case messageGiveUp:
+		if client.Status == userPlaying {
+			ch.commands <- hubCommand{
+				commandType: commandEnd,
+				client:      client,
+				payload:     client.Role,
+			}
 		}
 	}
 	return nil

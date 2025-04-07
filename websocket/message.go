@@ -2,16 +2,17 @@ package websocket
 
 type MessageType int
 
-// 使用前缀，区分command
+// 信息类型
 const (
-	messageNormal MessageType = iota + 1
-	messageMatch
-	messageMove
-	messageStart
-	messageEnd
-	messageJoin
-	messageCreate
-	messageError = 10
+	messageNormal MessageType = iota + 1 // 普通消息
+	messageMatch                         // 匹配消息
+	messageMove                          // 移动消息
+	messageStart                         // 开始消息
+	messageEnd                           // 结束消息
+	messageJoin                          // 加入消息
+	messageCreate                        // 创建房间消息
+	messageGiveUp                        // 放弃消息
+	messageError  = 10
 )
 
 type BaseMessage struct {
