@@ -14,6 +14,7 @@ import (
 
 	"github.com/gorilla/websocket"
 
+	"chinese-chess-backend/database"
 	"chinese-chess-backend/dto"
 	"chinese-chess-backend/dto/room"
 	"chinese-chess-backend/dto/user"
@@ -35,44 +36,14 @@ var upgrader = &websocket.Upgrader{
 	},
 }
 
-type clientStatus int
-
-const (
-	Online clientStatus = iota + 1
-	Playing
-	Matching
-)
-
-type Client struct {
-	Conn     *websocket.Conn
-	Id       int
-	Status   clientStatus
-	RoomId   int
-	LastPong time.Time // 上次收到PONG的时间
-}
-
-type ChessRoom struct {
-	Id      int
-	Current *Client // 先进入房间的作为先手，默认为当前玩家
-	Next    *Client // 后进入房间的作为后手，默认为下一个玩家
-}
-
-func NewChessRoom() *ChessRoom {
-	return &ChessRoom{
-		Id:      0,
-		Current: nil,
-		Next:    nil,
-	}
-}
-
 type ChessHub struct {
 	Rooms      map[int](*ChessRoom)
 	Clients    map[int]*Client
-	NextId     int
 	commands   chan hubCommand
 	spareRooms []room.RoomInfo // 有空位的房间id
 	mu         sync.Mutex
 	pool       *utils.WorkerPool
+	matchPool  [](*Client)
 }
 
 func NewChessHub() *ChessHub {
@@ -80,7 +51,6 @@ func NewChessHub() *ChessHub {
 	hub := &ChessHub{
 		Rooms:      make(map[int](*ChessRoom)),
 		Clients:    make(map[int]*Client),
-		NextId:     0,
 		commands:   make(chan hubCommand),
 		spareRooms: make([]room.RoomInfo, 0),
 		mu:         sync.Mutex{},
@@ -99,16 +69,21 @@ func (ch *ChessHub) Run() {
 	}()
 	for cmd := range ch.commands {
 		ch.pool.Process(context.Background(), func() error {
-			ch.mu.Lock()
-			defer ch.mu.Unlock()
 			switch cmd.commandType {
 			case register:
 				client := cmd.client
+				ch.mu.Lock()
 				ch.Clients[client.Id] = client
+				ch.mu.Unlock()
+				// 在线用户
+				database.SetValue(fmt.Sprint(client.Id), "a", 0)
 			case unregister:
 				client := cmd.client
 				roomId := client.RoomId
-				if room, ok := ch.Rooms[roomId]; ok {
+				ch.mu.Lock()
+				room, ok := ch.Rooms[roomId];
+				ch.mu.Unlock()
+				if ok {
 					var target *Client
 					if room.Current == client {
 						target = room.Next
@@ -116,13 +91,14 @@ func (ch *ChessHub) Run() {
 						target = room.Current
 					}
 					if target != nil {
-						ch.sendMessageInternal(target, NormalMessage{
+						ch.sendMessage(target, NormalMessage{
 							BaseMessage: BaseMessage{Type: Normal},
 							Message:     "对方已断开连接",
 						})
 					}
 					room.Current = nil
 					room.Next = nil
+					ch.mu.Lock()
 					delete(ch.Rooms, roomId)
 					// 如果房间原本只有一个人，那么删除房间
 					for i, r := range ch.spareRooms {
@@ -131,56 +107,35 @@ func (ch *ChessHub) Run() {
 							break
 						}
 					}
+					ch.mu.Unlock()
 				}
+				ch.mu.Lock()
 				if _, ok := ch.Clients[client.Id]; ok {
 					delete(ch.Clients, client.Id)
 					client.Conn.Close()
 				}
-			case match:
+				ch.mu.Unlock()
+				database.DeleteValue(fmt.Sprint(client.Id))
+			case match: // 应该写一个匹配池，存放所有正在匹配的用户，而不是创建房间
 				client := cmd.client
-				if len(ch.spareRooms) == 0 {
-					// 没有空闲房间，创建一个新的房间
-					r := NewChessRoom()
-					r.Id = ch.NextId
-					r.Current = client
-					client.RoomId = r.Id
-					ch.Rooms[ch.NextId] = r
-					ch.NextId++
-					roomInfo := room.RoomInfo{
-						Id: client.RoomId,
-						Current: user.UserInfo{
-							ID: uint(client.Id),
-						},
-					}
-					ch.spareRooms = append(ch.spareRooms, roomInfo)
-					fmt.Printf("创建新房间: %d\n", r.Id)
-					fmt.Println(ch.spareRooms)
-					return nil
-				}
-				// 有空闲房间，加入到空闲房间中
-				roomInfo := ch.spareRooms[0]
-				ch.spareRooms = ch.spareRooms[1:]
-				room := ch.Rooms[roomInfo.Id]
-				if room == nil {
+				ch.mu.Lock()
+				ch.matchPool = append(ch.matchPool, client)
+				fmt.Println(ch.matchPool)
+				if len(ch.matchPool) < 2 {
 					ch.sendMessageInternal(client, NormalMessage{
 						BaseMessage: BaseMessage{Type: Normal},
-						Message:     "房间不存在",
+						Message:     "正在匹配，请稍等",
 					})
+					ch.mu.Unlock()
 					return nil
 				}
-				if room.Current == nil {
-					room.Current = client
-					client.RoomId = roomInfo.Id
-				} else if room.Next == nil {
-					room.Next = client
-					client.RoomId = roomInfo.Id
-				} else {
-					ch.sendMessageInternal(client, NormalMessage{
-						BaseMessage: BaseMessage{Type: Normal},
-						Message:     "房间已满",
-					})
-					return nil
-				}
+				// 匹配成功，创建房间
+				room := NewChessRoom()
+				room.join(ch.matchPool[0])
+				room.join(ch.matchPool[1])
+				ch.matchPool = ch.matchPool[2:]
+				ch.Rooms[room.Id] = room
+				ch.mu.Unlock()
 				// 发送消息给两个客户端，通知他们开始游戏
 				go func() {
 					ch.commands <- hubCommand{
@@ -275,6 +230,55 @@ func (ch *ChessHub) Run() {
 				// 更新客户端的最后一次心跳时间
 				client := cmd.client
 				client.LastPong = time.Now()
+			case join:
+				joinMsg := cmd.payload.(joinMessage)
+				ch.mu.Lock()
+				room := ch.Rooms[joinMsg.RoomId]
+				if room == nil {
+					ch.sendMessage(cmd.client, NormalMessage{
+						BaseMessage: BaseMessage{Type: Normal},
+						Message:     "房间不存在",
+					})
+					ch.mu.Unlock()
+					return nil
+				}
+				err := room.join(cmd.client)
+				if err != nil {
+					ch.sendMessageInternal(cmd.client, NormalMessage{
+						BaseMessage: BaseMessage{Type: Normal},
+						Message:     err.Error(),
+					})
+					ch.mu.Unlock()
+					return nil
+				}
+				ch.mu.Unlock()
+				// 发送消息给两个客户端，通知他们开始游戏
+				go func() {
+					ch.commands <- hubCommand{
+						commandType: start,
+						client:      cmd.client,
+					}
+				}()
+			case create:
+				// 创建房间
+				client := cmd.client
+				r := NewChessRoom()
+				r.join(client)
+				ch.Rooms[r.Id] = r
+				roomInfo := room.RoomInfo{
+					Id: client.RoomId,
+					Current: user.UserInfo{
+						ID: uint(client.Id),
+					},
+				}
+				ch.mu.Lock()
+				ch.spareRooms = append(ch.spareRooms, roomInfo)
+				ch.mu.Unlock()
+				// 发送消息给客户端，通知他们创建房间成功
+				ch.sendMessage(client, NormalMessage{
+					BaseMessage: BaseMessage{Type: Create},
+				})
+				return nil
 			}
 			return nil
 		})
@@ -401,7 +405,7 @@ func (ch *ChessHub) handleMessage(client *Client, rawMessage []byte) error {
 		case Playing:
 			msg := NormalMessage{
 				BaseMessage: BaseMessage{Type: Normal},
-				Message:     "您已在游戏中，请耐心等待",
+				Message:     "您已在游戏中",
 			}
 			ch.sendMessage(client, msg)
 		}
@@ -439,9 +443,44 @@ func (ch *ChessHub) handleMessage(client *Client, rawMessage []byte) error {
 				payload:     endMsg.Winner,
 			}
 		}
-
+	case Join:
+		// 用户加入房间
+		if client.Status == Playing {
+			// 如果用户已经在游戏中，则不允许加入房间
+			msg := NormalMessage{
+				BaseMessage: BaseMessage{Type: Normal},
+				Message:     "您已在游戏中",
+			}
+			ch.sendMessage(client, msg)
+			return nil
+		}
+		var joinMsg joinMessage
+		err := json.Unmarshal(rawMessage, &joinMsg)
+		if err != nil {
+			fmt.Printf("解析加入房间消息失败: %v\n", err)
+			return nil
+		}
+		ch.commands <- hubCommand{
+			commandType: join,
+			client:      client,
+			payload:     joinMsg,
+		}
+	case Create:
+		// 用户创建房间
+		if client.Status == Playing {
+			// 如果用户已经在游戏中，则不允许创建房间
+			msg := NormalMessage{
+				BaseMessage: BaseMessage{Type: Normal},
+				Message:     "您已在游戏中",
+			}
+			ch.sendMessage(client, msg)
+			return nil
+		}
+		ch.commands <- hubCommand{
+			commandType: create,
+			client:      client,
+		}
 	}
-
 	return nil
 }
 

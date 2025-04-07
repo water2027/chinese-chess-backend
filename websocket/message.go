@@ -8,6 +8,8 @@ const (
 	Move
 	Start
 	End
+	Join
+	Create
 	Error = 10
 )
 
@@ -34,6 +36,11 @@ type NormalMessage struct {
 type startMessage struct {
 	BaseMessage
 	Role string `json:"role"`
+}
+
+type joinMessage struct {
+	BaseMessage
+	RoomId int `json:"roomId"`
 }
 
 type endMessage struct {
